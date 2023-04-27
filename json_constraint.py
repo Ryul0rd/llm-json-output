@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Dict, Callable, Type, Union
 from dataclasses import dataclass, fields
 from abc import ABC, abstractmethod
@@ -8,7 +9,7 @@ PrefixAllowedTokensFn = Callable[[int, torch.Tensor], List[int]]
 
 
 @dataclass
-class BatchedJsonConstraint:
+class JsonConstraint:
     prompt_ids: torch.Tensor
     tokenizer: PreTrainedTokenizerBase
     schemas: Union[Type, List[Type]]
@@ -17,31 +18,16 @@ class BatchedJsonConstraint:
         batch_size = self.prompt_ids.shape[0]
         if not isinstance(self.schemas, list):
             self.schemas = [self.schemas for _ in range(batch_size)]
-        self.constraints = [JsonConstraint(self.prompt_ids[index], self.tokenizer, schema) for index, schema in enumerate(self.schemas)]
+            self.prompt_length = self.prompt_ids.shape[1]
+        self.state_machines = [JsonObjectStateMachine(schema) for schema in self.schemas]
 
-    def __call__(self, batch_index: int, input_ids: torch.Tensor) -> List[int]:
-        json_constraint = self.constraints[batch_index]
-        valid_token_ids = json_constraint(input_ids)
-        return valid_token_ids
-
-
-@dataclass
-class JsonConstraint:
-    prompt_ids: torch.Tensor
-    tokenizer: PreTrainedTokenizerBase
-    schema: Type
-
-    def __post_init__(self):
-        self.prompt_length = self.prompt_ids.shape[0]
-        self.json_state_machine = JsonObjectStateMachine(self.schema)
         # cursed hack to get around the fact that a leading space on a token is represented with different characters in different tokenizers
         token_id_a = self.tokenizer.encode("a")[0]
         self.token_str_index_map = {self.tokenizer.convert_ids_to_tokens([token_id_a, index])[1]: index for _, index in self.tokenizer.get_vocab().items()}
 
-    def __call__(self, input_ids: torch.Tensor) -> List[int]:
-        """
-        input_ids is a 1d tensor of type int
-        """
+    def __call__(self, batch_index: int, input_ids: torch.Tensor) -> List[int]:
+        state_machine = self.state_machines[batch_index]
+
         # figure out what has been generated so far
         if input_ids.shape[0] == self.prompt_length:
             generated_so_far = ""
@@ -49,13 +35,13 @@ class JsonConstraint:
             generated_so_far = self.tokenizer.decode(input_ids[self.prompt_length:])
 
         # traverse state machine using text generated so far
-        self.json_state_machine.reset()
-        self.json_state_machine.advance(generated_so_far)
+        state_machine.reset()
+        state_machine.advance(generated_so_far)
 
         # for each token str in the vocab, check if it makes legal moves in the state machine from the current position
         allowed_token_ids = []
         for token_str, token_id in self.token_str_index_map.items():
-            if self.json_state_machine.valid_continuation(token_str) and token_str != "":
+            if state_machine.valid_continuation(token_str) and token_str != "":
                 allowed_token_ids.append(token_id)
 
         if len(allowed_token_ids) == 0:

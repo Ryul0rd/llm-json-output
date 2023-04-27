@@ -5,7 +5,7 @@ from transformers import GPT2Tokenizer, GPT2TokenizerFast, GPT2LMHeadModel, Llam
 import time
 import cProfile
 
-from json_constraint import JsonConstraint, BatchedJsonConstraint
+from json_constraint import JsonConstraint
 
 PrefixAllowedTokensFn = Callable[[int, torch.Tensor], List[int]]
 
@@ -41,7 +41,7 @@ def gpt2_test(input_text: List[str]):
         return_tensors="pt",
     ).input_ids.cuda()
 
-    json_constraint = BatchedJsonConstraint(input_ids, tokenizer, schemas=Person)
+    json_constraint = JsonConstraint(input_ids, tokenizer, schemas=Person)
 
     start_time = time.time()
     output_tokens = model.generate(input_ids, max_new_tokens=50, prefix_allowed_tokens_fn=json_constraint)
@@ -67,7 +67,7 @@ def llama_test(input_text: List[str]):
         return_tensors="pt",
     ).input_ids.cuda()
 
-    json_constraint = BatchedJsonConstraint(input_ids, tokenizer, schemas=Person)
+    json_constraint = JsonConstraint(input_ids, tokenizer, schemas=Person)
 
     start_time = time.time()
     output_tokens = model.generate(input_ids, max_new_tokens=50, eos_token_id=0, prefix_allowed_tokens_fn=json_constraint)
@@ -84,5 +84,5 @@ def llama_test(input_text: List[str]):
 
 
 if __name__ == "__main__":
-    #main()
-    cProfile.run("main()", filename="profile_data")
+    main()
+    #cProfile.run("main()", filename="profile_data")
