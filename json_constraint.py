@@ -51,6 +51,7 @@ class JsonConstraint:
 
 
 # types to support:
+# obj     DONE!
 # int,    DONE!
 # float,  DONE* (no exponent support yet)
 # bool,   DONE!
@@ -58,7 +59,6 @@ class JsonConstraint:
 # list,   X
 # option, X
 # enum,   X
-# obj     DONE!
 
 
 class JsonStateMachineModule(ABC):
@@ -79,11 +79,27 @@ class JsonStateMachineModule(ABC):
         pass
 
 
+def type_state_machine_map(type: Type):
+    if type == str:
+        return JsonStrStateMachine()
+    elif type == int:
+        return JsonIntStateMachine()
+    elif type == float:
+        return JsonFloatStateMachine()
+    elif type == bool:
+        return JsonBoolStateMachine()
+    elif type.__origin__ == list:
+        return JsonArrayStateMachine(type.__args__[0])
+    elif type == Type:
+        return JsonObjectStateMachine(type)
+    else:
+        raise ValueError(f"Unsupported type {type}. Supported types include str, int, float, bool, list, and dataclass")
+
+
 class JsonObjectStateMachine(JsonStateMachineModule):
     def __init__(self, schema: Type):
         self.state = 0
         self.backup_state = None
-        self.test = 0
         self.field_dfas: Dict[str, JsonStateMachineModule] = {}
         self.states = self._build_states(schema)
         self.terminal_state = len(self.states) - 1
@@ -93,23 +109,31 @@ class JsonObjectStateMachine(JsonStateMachineModule):
 
         for field in fields(schema):
             states.extend(list(f'"{field.name}":'))
-            if field.type == str:
-                states.append(f"str_{field.name}")
-                self.field_dfas[f"str_{field.name}"] = JsonStrStateMachine()
-            elif field.type == int:
-                states.append(f"int_{field.name}")
-                self.field_dfas[f"int_{field.name}"] = JsonIntStateMachine()
-            elif field.type == float:
-                states.append(f"float_{field.name}")
-                self.field_dfas[f"float_{field.name}"] = JsonFloatStateMachine()
-            elif field.type == bool:
-                states.append(f"bool_{field.name}")
-                self.field_dfas[f"bool_{field.name}"] = JsonBoolStateMachine()
-            elif isinstance(field.type, Type):
-                states.append(f"obj_{field.name}")
-                self.field_dfas[f"obj_{field.name}"] = JsonObjectStateMachine(field.type)
-            else:
-                raise ValueError()
+
+            states.append(field.name)
+            self.field_dfas[field.name] = type_state_machine_map(field.type)
+
+            # if field.type == str:
+            #     states.append(f"str_{field.name}")
+            #     self.field_dfas[f"str_{field.name}"] = JsonStrStateMachine()
+            # elif field.type == int:
+            #     states.append(f"int_{field.name}")
+            #     self.field_dfas[f"int_{field.name}"] = JsonIntStateMachine()
+            # elif field.type == float:
+            #     states.append(f"float_{field.name}")
+            #     self.field_dfas[f"float_{field.name}"] = JsonFloatStateMachine()
+            # elif field.type == bool:
+            #     states.append(f"bool_{field.name}")
+            #     self.field_dfas[f"bool_{field.name}"] = JsonBoolStateMachine()
+            # elif field.type == List:
+            #     states.append(f"arr_{field.name}")
+            #     self.field_dfas[f"arr_{field.name}"] = JsonArrayStateMachine(field.type.__args__[0])
+            # elif isinstance(field.type, Type):
+            #     states.append(f"obj_{field.name}")
+            #     self.field_dfas[f"obj_{field.name}"] = JsonObjectStateMachine(field.type)
+            # else:
+            #     raise ValueError()
+            
             states.append(",")
     
         if states[-1] == ",":
@@ -356,3 +380,59 @@ class JsonBoolStateMachine(JsonStateMachineModule):
 
     def load(self):
         self.state = self.backup_state
+
+
+class JsonArrayStateMachine(JsonStateMachineModule):
+    def __init__(self, value_type: type):
+        self.state = "start"
+        self.terminal_state = "]"
+        self.dfa = {
+            ("start", "["): "[",
+            ("[", "]"): "]",
+            ("[", "value"): "value",
+            ("value", "value"): "value",
+            ("value", "]"): "]",
+            ("value", ","): ",",
+            (",", "value"): "value",
+        }
+        self.value_state_machine = type_state_machine_map(value_type)
+
+    def advance_char(self, char: str) -> str:
+        """
+        Returns 'advanced' if the state advanced,
+        'finished' if we got an unexpected char in a terminal state,
+        and 'error' if we got an unexpected char in a non-terminal state
+        """
+        # first, check if char moves value forward
+        # then check if we move self forward
+        # else: return "finished" if state in terminal_states else "error"
+
+        # handle case where we're still doing value
+        if self.state in {state for state, transition in self.dfa.keys() if transition == "value"}:
+            if self.state != "value":
+                self.value_state_machine.reset()
+            backup_state = self.value_state_machine.state
+            if self.value_state_machine.advance_char(char) == "advanced":
+                return "advanced"
+            else:
+                self.value_state_machine.state = backup_state
+
+                if (self.state, char) in self.dfa:
+                    self.state = self.dfa[(self.state, char)]
+                    return "advanced"
+                elif self.state in self.terminal_states:
+                    return "finished"
+                else:
+                    return "error"
+
+    def reset(self):
+        self.state = "start"
+        self.value_state_machine.reset()
+
+    def save(self):
+        self.backup_state = self.state
+        self.value_state_machine.save()
+
+    def load(self):
+        self.state = self.backup_state
+        self.value_state_machine.load()

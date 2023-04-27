@@ -12,8 +12,8 @@ PrefixAllowedTokensFn = Callable[[int, torch.Tensor], List[int]]
 
 def main():
     input_text = [
-        "Plain Text:\nClara is a 29 year old woman.\nJSON:\n",
-        "Plain Text:\nMax is a 24 year old guy.\nJSON:\n",
+        "Plain Text:\nClara is a 29 year old woman. She likes cooking and hiking.\nJSON:\n",
+        "Plain Text:\nMax is a 24 year old guy. His hobbies include gaming and martial arts.\nJSON:\n",
     ]
 
     gpt2_test(input_text)
@@ -25,6 +25,7 @@ class Person:
     name: str
     age: int
     is_male: bool
+    #hobbies: List[str]
 
 
 def gpt2_test(input_text: List[str]):
