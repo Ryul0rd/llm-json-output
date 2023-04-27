@@ -15,6 +15,14 @@ def main():
         "Plain Text:\nClara is a 29 year old woman. She likes cooking and hiking.\nJSON:\n",
         "Plain Text:\nMax is a 24 year old guy. His hobbies include gaming and martial arts.\nJSON:\n",
     ]
+    # input_text = [
+    #     "Plain Text:\nClara is a 29 year old woman.\nJSON:\n",
+    #     "Plain Text:\nMax is a 24 year old guy.\nJSON:\n",
+    # ]
+    # input_text = [
+    #     "Plain Text:\nClara is a 29 year old woman.\nJSON:\n",
+    #     "Plain Text:\nMax is a 24 year old guy. His hobbies include gaming and martial arts.\nJSON:\n",
+    # ]
 
     gpt2_test(input_text)
     llama_test(input_text)
@@ -24,8 +32,10 @@ def main():
 class Person:
     name: str
     age: int
+    #number_of_pets: int
+    #number_of_hobbies: int
     is_male: bool
-    #hobbies: List[str]
+    hobbies: List[str]
 
 
 def gpt2_test(input_text: List[str]):
@@ -38,22 +48,23 @@ def gpt2_test(input_text: List[str]):
         input_text,
         padding=True,
         truncation=True,
-        max_length=32,
+        max_length=64,
         return_tensors="pt",
     ).input_ids.cuda()
 
     json_constraint = JsonConstraint(input_ids, tokenizer, schemas=Person)
 
     start_time = time.time()
-    output_tokens = model.generate(input_ids, max_new_tokens=50, prefix_allowed_tokens_fn=json_constraint)
+    output_tokens = model.generate(input_ids, max_new_tokens=64, prefix_allowed_tokens_fn=json_constraint)
     end_time = time.time()
-    output_text = tokenizer.batch_decode(output_tokens)
+    output_text = tokenizer.batch_decode(output_tokens, skip_special_tokens=True)
 
     print()
-    print(input_ids)
-    print(output_tokens)
-    print(output_text)
-    print(f"Time taken: {end_time - start_time}")
+    # print(input_ids)
+    # print(output_tokens)
+    for sample in output_text:
+        print(f"\n{sample}")
+    print(f"\nTime taken: {end_time - start_time}")
 
 
 def llama_test(input_text: List[str]):
@@ -64,24 +75,23 @@ def llama_test(input_text: List[str]):
         input_text,
         padding=True,
         truncation=True,
-        max_length=32,
+        max_length=64,
         return_tensors="pt",
     ).input_ids.cuda()
 
     json_constraint = JsonConstraint(input_ids, tokenizer, schemas=Person)
 
     start_time = time.time()
-    output_tokens = model.generate(input_ids, max_new_tokens=50, eos_token_id=0, prefix_allowed_tokens_fn=json_constraint)
+    output_tokens = model.generate(input_ids, max_new_tokens=64, eos_token_id=0, prefix_allowed_tokens_fn=json_constraint)
     end_time = time.time()
-    output_text = tokenizer.batch_decode(output_tokens[:1])
-    output_text2 = tokenizer.batch_decode(output_tokens[1:, :-1])
+    output_text = tokenizer.batch_decode(output_tokens, skip_special_tokens=True)
 
     print()
-    print(input_ids)
-    print(output_tokens)
-    print(output_text)
-    print(output_text2)
-    print(f"Time taken: {end_time - start_time}")
+    # print(input_ids)
+    # print(output_tokens)
+    for sample in output_text:
+        print(f"\n{sample}")
+    print(f"\nTime taken: {end_time - start_time}")
 
 
 if __name__ == "__main__":
