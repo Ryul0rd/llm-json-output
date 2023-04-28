@@ -15,14 +15,6 @@ def main():
         "Plain Text:\nClara is a 29 year old woman. She likes cooking and hiking.\nJSON:\n",
         "Plain Text:\nMax is a 24 year old guy. His hobbies include gaming and martial arts.\nJSON:\n",
     ]
-    # input_text = [
-    #     "Plain Text:\nClara is a 29 year old woman.\nJSON:\n",
-    #     "Plain Text:\nMax is a 24 year old guy.\nJSON:\n",
-    # ]
-    # input_text = [
-    #     "Plain Text:\nClara is a 29 year old woman.\nJSON:\n",
-    #     "Plain Text:\nMax is a 24 year old guy. His hobbies include gaming and martial arts.\nJSON:\n",
-    # ]
 
     gpt2_test(input_text)
     llama_test(input_text)
@@ -60,8 +52,6 @@ def gpt2_test(input_text: List[str]):
     output_text = tokenizer.batch_decode(output_tokens, skip_special_tokens=True)
 
     print()
-    # print(input_ids)
-    # print(output_tokens)
     for sample in output_text:
         print(f"\n{sample}")
     print(f"\nTime taken: {end_time - start_time}")
@@ -87,8 +77,6 @@ def llama_test(input_text: List[str]):
     output_text = tokenizer.batch_decode(output_tokens, skip_special_tokens=True)
 
     print()
-    # print(input_ids)
-    # print(output_tokens)
     for sample in output_text:
         print(f"\n{sample}")
     print(f"\nTime taken: {end_time - start_time}")

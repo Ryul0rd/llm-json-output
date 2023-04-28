@@ -112,27 +112,6 @@ class JsonObjectStateMachine(JsonStateMachineModule):
 
             states.append(field.name)
             self.field_dfas[field.name] = type_state_machine_map(field.type)
-
-            # if field.type == str:
-            #     states.append(f"str_{field.name}")
-            #     self.field_dfas[f"str_{field.name}"] = JsonStrStateMachine()
-            # elif field.type == int:
-            #     states.append(f"int_{field.name}")
-            #     self.field_dfas[f"int_{field.name}"] = JsonIntStateMachine()
-            # elif field.type == float:
-            #     states.append(f"float_{field.name}")
-            #     self.field_dfas[f"float_{field.name}"] = JsonFloatStateMachine()
-            # elif field.type == bool:
-            #     states.append(f"bool_{field.name}")
-            #     self.field_dfas[f"bool_{field.name}"] = JsonBoolStateMachine()
-            # elif field.type == List:
-            #     states.append(f"arr_{field.name}")
-            #     self.field_dfas[f"arr_{field.name}"] = JsonArrayStateMachine(field.type.__args__[0])
-            # elif isinstance(field.type, Type):
-            #     states.append(f"obj_{field.name}")
-            #     self.field_dfas[f"obj_{field.name}"] = JsonObjectStateMachine(field.type)
-            # else:
-            #     raise ValueError()
             
             states.append(",")
     
@@ -407,23 +386,23 @@ class JsonArrayStateMachine(JsonStateMachineModule):
         # then check if we move self forward
         # else: return "finished" if state in terminal_states else "error"
 
-        # handle case where we're still doing value
         if self.state in {state for state, transition in self.dfa.keys() if transition == "value"}:
             if self.state != "value":
                 self.value_state_machine.reset()
             backup_state = self.value_state_machine.state
             if self.value_state_machine.advance_char(char) == "advanced":
+                self.state = "value"
                 return "advanced"
             else:
                 self.value_state_machine.state = backup_state
 
-                if (self.state, char) in self.dfa:
-                    self.state = self.dfa[(self.state, char)]
-                    return "advanced"
-                elif self.state in self.terminal_states:
-                    return "finished"
-                else:
-                    return "error"
+        if (self.state, char) in self.dfa:
+            self.state = self.dfa[(self.state, char)]
+            return "advanced"
+        elif self.state in self.terminal_state:
+            return "finished"
+        else:
+            return "error"
 
     def reset(self):
         self.state = "start"
