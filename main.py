@@ -1,4 +1,4 @@
-from typing import List, Callable
+from typing import List, Callable, Optional
 from dataclasses import dataclass, fields
 import torch
 from transformers import GPT2Tokenizer, GPT2TokenizerFast, GPT2LMHeadModel, LlamaTokenizer, LlamaForCausalLM
@@ -13,7 +13,8 @@ PrefixAllowedTokensFn = Callable[[int, torch.Tensor], List[int]]
 def main():
     input_text = [
         "Plain Text:\nClara is a 29 year old woman. She likes cooking and hiking.\nJSON:\n",
-        "Plain Text:\nMax is a 24 year old guy. His hobbies include gaming and martial arts.\nJSON:\n",
+        #"Plain Text:\nMax is a 24 year old guy. His hobbies include gaming and martial arts.\nJSON:\n",
+        "Plain Text:\nMax is a guy whos age is unknown. His hobbies include gaming and martial arts.\nJSON:\n",
     ]
 
     gpt2_test(input_text)
@@ -23,11 +24,13 @@ def main():
 @dataclass
 class Person:
     name: str
-    age: int
+    age: Optional[int]
     #number_of_pets: int
     #number_of_hobbies: int
     is_male: bool
-    hobbies: List[str]
+    email_address: Optional[str]
+    #hobbies: List[str]
+
 
 
 def gpt2_test(input_text: List[str]):
@@ -74,7 +77,7 @@ def llama_test(input_text: List[str]):
     start_time = time.time()
     output_tokens = model.generate(input_ids, max_new_tokens=64, eos_token_id=0, prefix_allowed_tokens_fn=json_constraint)
     end_time = time.time()
-    output_text = tokenizer.batch_decode(output_tokens, skip_special_tokens=True)
+    output_text = tokenizer.batch_decode(torch.where(output_tokens == -1, 1, output_tokens), skip_special_tokens=True)
 
     print()
     for sample in output_text:

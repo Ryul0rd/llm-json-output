@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Callable, Type, Union
+from typing import List, Dict, Callable, Type, Union, Optional
 from dataclasses import dataclass, fields
 from abc import ABC, abstractmethod
 import torch
@@ -56,8 +56,8 @@ class JsonConstraint:
 # float,  DONE* (no exponent support yet)
 # bool,   DONE!
 # str,    DONE* (no escape chars yet)
-# list,   X
-# option, X
+# list,   Done!
+# option, Done!
 # enum,   X
 
 
@@ -79,21 +79,23 @@ class JsonStateMachineModule(ABC):
         pass
 
 
-def type_state_machine_map(type: Type):
-    if type == str:
+def type_state_machine_map(field_type: Type):
+    if field_type == str:
         return JsonStrStateMachine()
-    elif type == int:
+    elif field_type == int:
         return JsonIntStateMachine()
-    elif type == float:
+    elif field_type == float:
         return JsonFloatStateMachine()
-    elif type == bool:
+    elif field_type == bool:
         return JsonBoolStateMachine()
-    elif type.__origin__ == list:
-        return JsonArrayStateMachine(type.__args__[0])
-    elif type == Type:
-        return JsonObjectStateMachine(type)
+    elif field_type.__origin__ == list:
+        return JsonArrayStateMachine(field_type.__args__[0])
+    elif field_type.__origin__ == Union and len(field_type.__args__) == 2 and field_type.__args__[1] == type(None):
+        return JsonOptionStateMachine(field_type.__args__[0])
+    elif field_type == Type:
+        return JsonObjectStateMachine(field_type)
     else:
-        raise ValueError(f"Unsupported type {type}. Supported types include str, int, float, bool, list, and dataclass")
+        raise ValueError(f"Unsupported type {field_type}. Supported types include str, int, float, bool, list, and dataclass")
 
 
 class JsonObjectStateMachine(JsonStateMachineModule):
@@ -362,7 +364,7 @@ class JsonBoolStateMachine(JsonStateMachineModule):
 
 
 class JsonArrayStateMachine(JsonStateMachineModule):
-    def __init__(self, value_type: type):
+    def __init__(self, value_type: Type):
         self.state = "start"
         self.terminal_state = "]"
         self.dfa = {
@@ -399,10 +401,55 @@ class JsonArrayStateMachine(JsonStateMachineModule):
         if (self.state, char) in self.dfa:
             self.state = self.dfa[(self.state, char)]
             return "advanced"
-        elif self.state in self.terminal_state:
+        elif self.state == self.terminal_state:
             return "finished"
         else:
             return "error"
+
+    def reset(self):
+        self.state = "start"
+        self.value_state_machine.reset()
+
+    def save(self):
+        self.backup_state = self.state
+        self.value_state_machine.save()
+
+    def load(self):
+        self.state = self.backup_state
+        self.value_state_machine.load()
+
+
+class JsonOptionStateMachine(JsonStateMachineModule):
+    def __init__(self, value_type: Type):
+        self.state = "start"
+        self.terminal_state = "l2"
+        self.dfa = {
+            ("start", "n"): "n",
+            ("n", "u"): "u",
+            ("u", "l"): "l",
+            ("l", "l"): "l2",
+            ("start", "value"): "value",
+        }
+        self.value_state_machine = type_state_machine_map(value_type)
+
+    def advance_char(self, char: str) -> str:
+        """
+        Returns 'advanced' if the state advanced,
+        'finished' if we got an unexpected char in a terminal state,
+        and 'error' if we got an unexpected char in a non-terminal state
+        """
+        if (self.state, char) in self.dfa:
+            self.state = self.dfa[(self.state, char)]
+            return "advanced"
+        elif self.state == self.terminal_state:
+            return "finished"
+        else:
+            advance_result = self.value_state_machine.advance_char(char)
+            if advance_result == "advanced":
+                self.state = "value"
+                return "advanced"
+            else:
+                return advance_result
 
     def reset(self):
         self.state = "start"
