@@ -1,7 +1,8 @@
 from __future__ import annotations
-from typing import List, Dict, Callable, Type, Union, Optional
+from typing import List, Dict, Callable, Type, Union, Optional, Tuple
 from dataclasses import dataclass, fields
 from abc import ABC, abstractmethod
+from enum import Enum
 import torch
 from transformers import PreTrainedTokenizerBase
 
@@ -88,11 +89,13 @@ def type_state_machine_map(field_type: Type):
         return JsonFloatStateMachine()
     elif field_type == bool:
         return JsonBoolStateMachine()
+    elif isinstance(field_type, Type) and issubclass(field_type, Enum):
+        return JsonEnumStateMachine(field_type)
     elif field_type.__origin__ == list:
         return JsonArrayStateMachine(field_type.__args__[0])
     elif field_type.__origin__ == Union and len(field_type.__args__) == 2 and field_type.__args__[1] == type(None):
         return JsonOptionStateMachine(field_type.__args__[0])
-    elif field_type == Type:
+    elif isinstance(field_type, Type):
         return JsonObjectStateMachine(field_type)
     else:
         raise ValueError(f"Unsupported type {field_type}. Supported types include str, int, float, bool, list, and dataclass")
@@ -462,3 +465,63 @@ class JsonOptionStateMachine(JsonStateMachineModule):
     def load(self):
         self.state = self.backup_state
         self.value_state_machine.load()
+
+
+class JsonEnumStateMachine(JsonStateMachineModule):
+    def __init__(self, enum: Enum):
+        self.states = []
+        self.dfas = []
+        self.terminal_states = []
+
+        for option in enum:
+            self.states.append("start")
+
+            option_chars = list(f'"{option.value}"')
+            dfa = {}
+            option_states = ["start"] + option_chars
+            last_state = None
+            for state_index in range(len(option_states)):
+                if state_index == len(option_states) - 1:
+                    break
+                current_state = "start" if state_index == 0 else f"{state_index - 1}_{option_states[state_index]}"
+                next_state = f"{state_index}_{option_states[state_index + 1]}"
+                next_char = option_states[state_index + 1]
+                dfa[(current_state, next_char)] = next_state
+                last_state = next_state
+            self.dfas.append(dfa)
+
+            self.terminal_states.append(last_state)
+
+        print()
+        print(self.states)
+        print(self.terminal_states)
+        print(self.dfas)
+        print()
+
+    def advance_char(self, char: str) -> str:
+        """
+        Returns 'advanced' if the state advanced,
+        'finished' if we got an unexpected char in a terminal state,
+        and 'error' if we got an unexpected char in a non-terminal state
+        """
+        best_result_so_far = "error"
+
+        for i in range(len(self.states)):
+            if self.states[i] == self.terminal_states[i]:
+                best_result_so_far = "finished"
+        
+        for i in range(len(self.states)):
+            if (self.states[i], char) in self.dfas[i]:
+                self.states[i] = self.dfas[i][(self.states[i], char)]
+                best_result_so_far = "advanced"
+        
+        return best_result_so_far
+
+    def reset(self):
+        self.states = ["start" for _ in self.states]
+
+    def save(self):
+        self.backup_states = self.states
+
+    def load(self):
+        self.states = self.backup_states

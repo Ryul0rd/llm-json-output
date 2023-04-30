@@ -1,5 +1,6 @@
 from typing import List, Callable, Optional
 from dataclasses import dataclass, fields
+from enum import Enum
 import torch
 from transformers import GPT2Tokenizer, GPT2TokenizerFast, GPT2LMHeadModel, LlamaTokenizer, LlamaForCausalLM
 import time
@@ -18,19 +19,30 @@ def main():
     ]
 
     gpt2_test(input_text)
-    llama_test(input_text)
+    #llama_test(input_text)
+
+
+class Pet(Enum):
+    SMALL_CAT = "very small cat"
+    SMALL_DOG = "very small dog"
+    BIG_CAT = "very big cat"
+    BIG_DOG = "very big dog"
+
+
+class Gender(Enum):
+    MALE = "Male"
+    # FEMALE = "Female"
+    # OTHER = "Other"
 
 
 @dataclass
 class Person:
     name: str
     age: Optional[int]
-    #number_of_pets: int
-    #number_of_hobbies: int
-    is_male: bool
+    gender: Gender
+    pet: Pet
     email_address: Optional[str]
-    #hobbies: List[str]
-
+    hobbies: List[str]
 
 
 def gpt2_test(input_text: List[str]):
