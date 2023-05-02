@@ -19,28 +19,13 @@ def main():
     ]
 
     gpt2_test(input_text)
-    #llama_test(input_text)
-
-
-class Pet(Enum):
-    SMALL_CAT = "very small cat"
-    SMALL_DOG = "very small dog"
-    BIG_CAT = "very big cat"
-    BIG_DOG = "very big dog"
-
-
-class Gender(Enum):
-    MALE = "Male"
-    # FEMALE = "Female"
-    # OTHER = "Other"
+    llama_test(input_text)
 
 
 @dataclass
 class Person:
     name: str
     age: Optional[int]
-    gender: Gender
-    pet: Pet
     email_address: Optional[str]
     hobbies: List[str]
 
