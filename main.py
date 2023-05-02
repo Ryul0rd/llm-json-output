@@ -26,8 +26,9 @@ def main():
 class Person:
     name: str
     age: Optional[int]
+    is_male: bool
     email_address: Optional[str]
-    hobbies: List[str]
+    #hobbies: List[str] # This is very slow
 
 
 def gpt2_test(input_text: List[str]):
